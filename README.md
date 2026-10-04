@@ -1,6 +1,6 @@
 # Loja Veloz
 
-[![CI](https://github.com/Brunacoelhob/loja-veloz-cloud-native/actions/workflows/ci.yml/badge.svg)](https://github.com/Brunacoelhob/loja-veloz-cloud-native/actions/workflows/ci.yml)
+[![CI](https://github.com/Brunacoelhob/app-loja-veloz/actions/workflows/ci.yml/badge.svg)](https://github.com/Brunacoelhob/app-loja-veloz/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/node-%E2%89%A522-339933)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
