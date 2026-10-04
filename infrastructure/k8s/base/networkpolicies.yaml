@@ -1,0 +1,64 @@
+# 1) Nega todo tráfego de entrada por padrão.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: negar-entrada-por-padrao }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+# 2) Gateway: recebe tráfego do Ingress (namespace ingress-nginx).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: gateway-recebe-do-ingress }
+spec:
+  podSelector: { matchLabels: { app: api-gateway } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } }
+      ports: [{ port: 3000 }]
+---
+# 3) Pedidos aceita só do gateway; estoque aceita do gateway e de pedidos; pagamentos só de pedidos.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: pedidos-recebe-do-gateway }
+spec:
+  podSelector: { matchLabels: { app: pedidos } }
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app: api-gateway } } }]
+      ports: [{ port: 3000 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: estoque-recebe-de-gateway-e-pedidos }
+spec:
+  podSelector: { matchLabels: { app: estoque } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: api-gateway } }
+        - podSelector: { matchLabels: { app: pedidos } }
+      ports: [{ port: 3000 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: pagamentos-recebe-de-pedidos }
+spec:
+  podSelector: { matchLabels: { app: pagamentos } }
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{ podSelector: { matchLabels: { app: pedidos } } }]
+      ports: [{ port: 3000 }]
+---
+# 4) Métricas (9100): somente o Prometheus (namespace monitoring) lê.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: metricas-so-para-prometheus }
+spec:
+  podSelector: { matchLabels: { app.kubernetes.io/part-of: loja-veloz } }
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: monitoring } }
+      ports: [{ port: 9100 }]

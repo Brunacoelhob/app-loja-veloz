@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alertas.yml
+
+# As métricas de cada serviço ficam numa porta separada e interna (9100), nunca expostas pelo gateway público.
+scrape_configs:
+  - job_name: loja-veloz
+    static_configs:
+      - targets: ['api-gateway:9100', 'pedidos:9100', 'estoque:9100', 'pagamentos:9100']
+        labels:
+          ambiente: local

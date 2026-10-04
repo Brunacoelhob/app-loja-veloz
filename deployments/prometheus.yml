@@ -1,7 +1,0 @@
-global:
-  scrape_interval: 15s
-
-scrape_configs:
-  - job_name: 'loja-veloz'
-    static_configs:
-      - targets: ['api-gateway:3000', 'pedidos:3000', 'estoque:3000', 'pagamentos:3000']

@@ -4,3 +4,12 @@ node_modules/
 .terraform/
 terraform.tfstate*
 *.log
+# Segredos locais e arquivos gerados
+.env
+.env.*
+!.env.example
+!.env.exemplo
+coverage/
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.bak

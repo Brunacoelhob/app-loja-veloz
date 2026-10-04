@@ -1,0 +1,21 @@
+# Exige um Ingress Controller (ingress-nginx) e cert-manager para o TLS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: loja-veloz
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-body-size: 100k
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [loja.exemplo.com.br]
+      secretName: loja-veloz-tls
+  rules:
+    - host: loja.exemplo.com.br # troque pelo seu domínio
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: { service: { name: api-gateway, port: { name: http } } }

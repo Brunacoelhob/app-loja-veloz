@@ -1,0 +1,18 @@
+# MODELO. Não aplique este arquivo com valores reais nem o commite preenchido.
+# Crie o segredo direto no cluster (ou use Sealed Secrets / External Secrets / Secret Manager):
+#
+#   kubectl -n loja-veloz create secret generic loja-veloz-segredos \
+#     --from-literal=api-key="$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")" \
+#     --from-literal=database-url-pedidos='postgres://USUARIO:SENHA@HOST:5432/pedidos_db' \
+#     --from-literal=database-url-estoque='postgres://USUARIO:SENHA@HOST:5432/estoque_db'
+#
+# Em produção use um Postgres gerenciado (Cloud SQL), não um contêiner no cluster.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: loja-veloz-segredos
+type: Opaque
+stringData:
+  api-key: TROQUE
+  database-url-pedidos: postgres://USUARIO:SENHA@HOST:5432/pedidos_db
+  database-url-estoque: postgres://USUARIO:SENHA@HOST:5432/estoque_db

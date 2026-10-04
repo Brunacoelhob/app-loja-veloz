@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: estoque
+  labels: { app: estoque, app.kubernetes.io/part-of: loja-veloz }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: estoque }
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels: { app: estoque, app.kubernetes.io/part-of: loja-veloz }
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9100'
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: estoque
+          image: ghcr.io/brunacoelhob/app-loja-veloz/estoque:latest
+          ports:
+            - { name: http, containerPort: 3000 }
+            - { name: metricas, containerPort: 9100 }
+          env:
+            - { name: NODE_ENV, value: production }
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: loja-veloz-segredos, key: database-url-estoque } }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /pronto, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /saude, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: estoque
+  labels: { app: estoque }
+spec:
+  selector: { app: estoque }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: estoque
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: estoque }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: estoque
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: estoque }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

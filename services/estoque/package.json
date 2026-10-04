@@ -1,14 +1,22 @@
 {
-  "name": "estoque",
+  "name": "loja-veloz-estoque",
   "version": "1.0.0",
-  "description": "Serviço de Estoque da Loja Veloz - Responsável por reserva e baixa de itens",
-  "author": "Bruna - Estudante de ADS",
-  "main": "index.js",
+  "description": "Catálogo e estoque, com reservas atômicas e idempotentes por pedido.",
+  "private": true,
+  "author": "Bruna Coelho",
+  "license": "MIT",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/index.js",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "pg": "^8.13.1",
     "prom-client": "^15.1.3"
   }
 }

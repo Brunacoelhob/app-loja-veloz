@@ -1,14 +1,22 @@
 {
-  "name": "pedidos",
+  "name": "loja-veloz-pedidos",
   "version": "1.0.0",
-  "description": "Serviço de Pedidos da Loja Veloz - Core business para gestão de ordens de compra",
-  "author": "Bruna - Estudante de ADS",
-  "main": "index.js",
+  "description": "Orquestra a criação de pedidos: reserva estoque, cobra o pagamento e compensa em caso de falha.",
+  "private": true,
+  "author": "Bruna Coelho",
+  "license": "MIT",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/index.js",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
+    "pg": "^8.13.1",
     "prom-client": "^15.1.3"
   }
 }

@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pedidos
+  labels: { app: pedidos, app.kubernetes.io/part-of: loja-veloz }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: pedidos }
+  strategy:
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  template:
+    metadata:
+      labels: { app: pedidos, app.kubernetes.io/part-of: loja-veloz }
+      annotations:
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9100'
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: { type: RuntimeDefault }
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: pedidos
+          image: ghcr.io/brunacoelhob/app-loja-veloz/pedidos:latest
+          ports:
+            - { name: http, containerPort: 3000 }
+            - { name: metricas, containerPort: 9100 }
+          env:
+            - { name: NODE_ENV, value: production }
+            - { name: ESTOQUE_URL, value: 'http://estoque' }
+            - { name: PAGAMENTOS_URL, value: 'http://pagamentos' }
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: loja-veloz-segredos, key: database-url-pedidos } }
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /pronto, port: http }
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: /saude, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pedidos
+  labels: { app: pedidos }
+spec:
+  selector: { app: pedidos }
+  ports:
+    - { name: http, port: 80, targetPort: http }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: pedidos
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: pedidos }
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pedidos
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: pedidos }
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

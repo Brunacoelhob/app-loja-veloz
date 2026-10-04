@@ -1,0 +1,8 @@
+# Renomeie para backend.tf e ajuste. Guarda o estado em um bucket (com versionamento e criptografia),
+# permitindo trabalho em equipe e evitando perder/vazar o terraform.tfstate local.
+terraform {
+  backend "gcs" {
+    bucket = "SEU-BUCKET-DE-ESTADO"
+    prefix = "loja-veloz"
+  }
+}

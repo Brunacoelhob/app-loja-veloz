@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'melhoria/**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testes:
+    name: Testes (${{ matrix.servico }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        servico: [api-gateway, pedidos, estoque, pagamentos]
+    defaults:
+      run:
+        working-directory: services/${{ matrix.servico }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/${{ matrix.servico }}/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Vulnerabilidades em dependências de produção
+        run: npm audit --omit=dev --audit-level=high
+
+  integracao:
+    name: Integração (docker compose)
+    runs-on: ubuntu-latest
+    needs: testes
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sobe a stack completa
+        working-directory: deployments
+        run: |
+          {
+            echo "DB_USER=postgres"
+            echo "DB_SENHA=$(openssl rand -hex 16)"
+            echo "API_KEY=$(openssl rand -hex 16)"
+            echo "GRAFANA_SENHA=$(openssl rand -hex 16)"
+          } > .env
+          docker compose up -d --build --wait
+      - name: Fluxo de pedido ponta a ponta
+        working-directory: deployments
+        run: |
+          set -eu
+          KEY=$(grep '^API_KEY=' .env | cut -d= -f2)
+          curl -fsS localhost:8080/api/estoque
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST localhost:8080/api/pedidos)" = 401
+          RESP=$(curl -fsS -X POST localhost:8080/api/pedidos -H "x-api-key: $KEY" -H 'content-type: application/json' \
+            -d '{"metodoPagamento":"pix","itens":[{"produtoId":1,"quantidade":1}]}')
+          echo "$RESP" | grep -q '"status":"PAGO"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/metrics)" = 404
+      - name: Logs em caso de falha
+        if: failure()
+        working-directory: deployments
+        run: docker compose logs --no-color --tail=100
+      - name: Derruba a stack
+        if: always()
+        working-directory: deployments
+        run: docker compose down -v
+
+  infraestrutura:
+    name: Manifestos Kubernetes e Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Renderiza o Kustomize
+        run: kubectl kustomize infrastructure/k8s/overlays/producao > /dev/null
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Valida o Terraform
+        working-directory: infrastructure/terraform
+        run: |
+          terraform fmt -check
+          terraform init -backend=false -input=false
+          terraform validate

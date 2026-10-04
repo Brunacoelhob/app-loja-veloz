@@ -1,14 +1,21 @@
 {
-  "name": "pagamentos",
+  "name": "loja-veloz-pagamentos",
   "version": "1.0.0",
-  "description": "Serviço de Pagamentos da Loja Veloz - Integração externa e processamento financeiro",
-  "author": "Bruna - Estudante de ADS",
-  "main": "index.js",
+  "description": "Gateway de pagamento simulado, idempotente por pedido.",
+  "private": true,
+  "author": "Bruna Coelho",
+  "license": "MIT",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "start": "node index.js"
+    "start": "node src/index.js",
+    "test": "node --test \"test/**/*.test.js\""
   },
   "dependencies": {
-    "express": "^4.18.2",
+    "express": "^4.21.2",
+    "helmet": "^8.1.0",
     "prom-client": "^15.1.3"
   }
 }

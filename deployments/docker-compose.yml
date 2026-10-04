@@ -1,69 +1,127 @@
-version: '3.8'
+# Loja Veloz: stack local completa (banco, microsserviços, Prometheus e Grafana).
+#
+#   cd deployments && cp .env.example .env     # preencha as senhas
+#   docker compose up -d --build --wait
+#
+# Redes:
+#   interna  -> sem saída para a internet e sem porta publicada: banco e microsserviços só se falam aqui.
+#   publica  -> o que o host enxerga: gateway (8080), Prometheus (9090) e Grafana (3004), só em 127.0.0.1.
+
+x-servico-seguro: &servico-seguro
+  restart: unless-stopped
+  read_only: true # sistema de arquivos somente leitura: um invasor não consegue gravar nada no contêiner
+  tmpfs:
+    - /tmp
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  networks:
+    - interna
 
 services:
-  # Banco de Dados (PostgreSQL) - Requisito: Banco de dados (PostgreSQL)
   db:
-    image: postgres:15-alpine
-    container_name: loja-veloz-db
+    image: postgres:16-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: senha_segura
-      POSTGRES_DB: pedidos_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${DB_USER:?defina DB_USER no .env}
+      POSTGRES_PASSWORD: ${DB_SENHA:?defina DB_SENHA no .env}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - dados_banco:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - interna
+    # Sem "ports": o banco NÃO é acessível de fora do Docker.
 
-  # API Gateway (HTTP) - Requisito: API Gateway
-  api-gateway:
-    build: ../services/api-gateway
-    container_name: service-gateway
-    ports:
-      - "8080:3000"
-
-  # Serviço de Pedidos - Requisito: Serviço de Pedidos
-  pedidos:
-    build: ../services/pedidos
-    container_name: service-pedidos
-    ports:
-      - "3001:3000"
-    depends_on:
-      - db
-
-  # Serviço de Estoque - Requisito: Serviço de Estoque
   estoque:
+    <<: *servico-seguro
     build: ../services/estoque
-    container_name: service-estoque
-    ports:
-      - "3002:3000"
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_SENHA}@db:5432/estoque_db
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
-  # Serviço de Pagamentos - Requisito: Serviço de Pagamentos
   pagamentos:
+    <<: *servico-seguro
     build: ../services/pagamentos
-    container_name: service-pagamentos
-    ports:
-      - "3003:3000"
 
-  # Prometheus - Coletor de métricas para Observabilidade
+  pedidos:
+    <<: *servico-seguro
+    build: ../services/pedidos
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_SENHA}@db:5432/pedidos_db
+      ESTOQUE_URL: http://estoque:3000
+      PAGAMENTOS_URL: http://pagamentos:3000
+    depends_on:
+      db:
+        condition: service_healthy
+      estoque:
+        condition: service_healthy
+      pagamentos:
+        condition: service_healthy
+
+  api-gateway:
+    <<: *servico-seguro
+    build: ../services/api-gateway
+    environment:
+      API_KEY: ${API_KEY:?defina API_KEY no .env (mínimo 16 caracteres)}
+      PEDIDOS_URL: http://pedidos:3000
+      ESTOQUE_URL: http://estoque:3000
+    ports:
+      - '127.0.0.1:${PORTA_GATEWAY:-8080}:3000'
+    depends_on:
+      pedidos:
+        condition: service_healthy
+      estoque:
+        condition: service_healthy
+    networks:
+      - interna
+      - publica
+
   prometheus:
-    image: prom/prometheus:latest
-    container_name: loja-veloz-prometheus
+    image: prom/prometheus:v2.55.1
+    restart: unless-stopped
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alertas.yml:/etc/prometheus/alertas.yml:ro
+      - dados_prometheus:/prometheus
     ports:
-      - "9090:9090"
+      - '127.0.0.1:9090:9090'
+    networks:
+      - interna
+      - publica
 
-  # Grafana - Painel visual para métricas e monitoramento
   grafana:
-    image: grafana/grafana:latest
-    container_name: loja-veloz-grafana
+    image: grafana/grafana:11.3.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USUARIO:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_SENHA:?defina GRAFANA_SENHA no .env}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - dados_grafana:/var/lib/grafana
     ports:
-      - "3004:3000"
+      - '127.0.0.1:3004:3000'
     depends_on:
       - prometheus
+    networks:
+      - interna
+      - publica
 
-# Definição de volumes globais para persistência de dados
+networks:
+  interna:
+    internal: true
+  publica:
+
 volumes:
-  postgres_data:
+  dados_banco:
+  dados_prometheus:
+  dados_grafana:

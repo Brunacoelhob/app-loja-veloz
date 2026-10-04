@@ -1,0 +1,31 @@
+# Regras de alerta. Aparecem em http://localhost:9090/alerts.
+# Em produção, conecte um Alertmanager (e-mail, Slack, PagerDuty) para receber os avisos.
+groups:
+  - name: loja-veloz
+    rules:
+      - alert: ServicoForaDoAr
+        expr: up{job="loja-veloz"} == 0
+        for: 1m
+        labels:
+          severidade: critica
+        annotations:
+          resumo: 'O serviço {{ $labels.instance }} não responde há mais de 1 minuto.'
+
+      - alert: TaxaDeErros5xxAlta
+        expr: |
+          sum by (servico) (rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+            / sum by (servico) (rate(http_request_duration_seconds_count[5m])) > 0.05
+        for: 5m
+        labels:
+          severidade: alta
+        annotations:
+          resumo: 'Mais de 5% das requisições do serviço {{ $labels.servico }} estão falhando (erro 5xx).'
+
+      - alert: LatenciaP95Alta
+        expr: |
+          histogram_quantile(0.95, sum by (le, servico) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels:
+          severidade: media
+        annotations:
+          resumo: 'O serviço {{ $labels.servico }} está lento: 95% das respostas passam de 1 segundo.'

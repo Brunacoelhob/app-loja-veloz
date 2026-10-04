@@ -1,0 +1,2 @@
+project_id        = "meu-projeto-gcp"
+cidrs_autorizados = { escritorio = "203.0.113.10/32" }
